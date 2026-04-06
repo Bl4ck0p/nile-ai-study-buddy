@@ -86,7 +86,7 @@ Use this exact format.`;
     for (let i = 0; i < apiKeys.length; i++) {
       try {
         const genAI = new GoogleGenerativeAI(apiKeys[i]);
-        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+        const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
         
         // Use streaming for faster perceived response
         const result = await model.generateContent(prompt);
