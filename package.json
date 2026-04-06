@@ -1,0 +1,8 @@
+{
+  "name": "nile-ai-study-buddy",
+  "version": "1.0.0",
+  "description": "AI Study Buddy for Nile University",
+  "dependencies": {
+    "@google/generative-ai": "^0.21.0"
+  }
+}
