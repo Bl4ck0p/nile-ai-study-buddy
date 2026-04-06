@@ -1,6 +1,6 @@
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 
-// List of all 12 API keys from environment variables
+// List of all API keys from environment variables
 const apiKeys = [
   process.env.GEMINI_API_KEY_1,
   process.env.GEMINI_API_KEY_2,
@@ -14,7 +14,7 @@ const apiKeys = [
   process.env.GEMINI_API_KEY_10,
   process.env.GEMINI_API_KEY_11,
   process.env.GEMINI_API_KEY_12
-].filter(key => key && key.trim() !== ""); // Only keep keys that actually exist
+].filter(key => key && key.trim() !== "");
 
 exports.handler = async (event, context) => {
   const headers = {
@@ -46,63 +46,68 @@ exports.handler = async (event, context) => {
       return {
         statusCode: 500,
         headers,
-        body: JSON.stringify({ error: 'No API keys configured. Add GEMINI_API_KEY_1 through GEMINI_API_KEY_12 in Netlify environment variables.' })
+        body: JSON.stringify({ error: 'No API keys configured.' })
       };
     }
 
-    // Build the prompt
-    let prompt = `You are Nile AI Study Buddy, an expert study assistant for Nile University students. `;
+    // Optimized prompts for faster responses
+    let prompt = `You are Nile AI Study Buddy. Be concise and clear. `;
     
     switch (mode) {
       case 'summarize':
-        prompt += `Summarize the following content into clear, concise key points that a student can use for quick revision. Use bullet points and highlight important concepts:\n\n`;
+        prompt += `Summarize this in 3-5 bullet points only:\n\n`;
         break;
       case 'quiz':
-        prompt += `Create 5 multiple-choice quiz questions based on the following content. For each question, provide 4 options (A, B, C, D) and indicate the correct answer with an explanation. Format clearly:\n\n`;
+        prompt += `Create 5 multiple-choice questions. Format EXACTLY like this for each question:
+
+1. [Question text here]
+A. [Option A]
+B. [Option B]
+C. [Option C]
+D. [Option D]
+Correct Answer: [A/B/C/D]
+Explanation: [Brief explanation]
+
+Use this exact format.`;
         break;
       case 'explain':
       default:
-        prompt += `Explain the following step-by-step in a clear, educational way. Break down complex concepts, provide examples, and help the student truly understand (not just memorize). Use headers, bullet points, and clear structure:\n\n`;
+        prompt += `Explain this briefly in simple terms (max 150 words):\n\n`;
     }
 
     prompt += text || '';
     if (fileContents && fileContents.length > 0) {
-      prompt += `\n\n---\nAdditional context from uploaded files:\n${fileContents.join('\n\n')}`;
+      prompt += `\n\nContext:\n${fileContents.join('\n').substring(0, 1500)}`;
     }
 
-    // Try each API key until one works
+    // Try each API key
     let lastError = null;
     
     for (let i = 0; i < apiKeys.length; i++) {
       try {
-        console.log(`Trying API key #${i + 1}...`);
         const genAI = new GoogleGenerativeAI(apiKeys[i]);
-        const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
         
+        // Use streaming for faster perceived response
         const result = await model.generateContent(prompt);
         const aiResponse = result.response.text();
         
-        console.log(`✅ API key #${i + 1} succeeded!`);
-        
-        // Success! Return response
         return {
           statusCode: 200,
           headers,
           body: JSON.stringify({ 
             result: aiResponse,
             mode: mode,
-            keyUsed: i + 1,  // Tells you which key worked
+            keyUsed: i + 1,
             timestamp: new Date().toISOString()
           })
         };
       } catch (err) {
         lastError = err;
-        console.log(`❌ API key #${i + 1} failed:`, err.message);
-        // Continue to next key
+        console.log(`API key ${i + 1} failed:`, err.message);
       }
     }
     
-    // All keys failed
     throw new Error(`All ${apiKeys.length} API keys failed. Last error: ${lastError?.message}`);
     
   } catch (error) {
@@ -111,8 +116,7 @@ exports.handler = async (event, context) => {
       statusCode: 500,
       headers,
       body: JSON.stringify({ 
-        error: error.message || 'Internal server error',
-        details: error.toString()
+        error: error.message || 'Internal server error'
       })
     };
   }
