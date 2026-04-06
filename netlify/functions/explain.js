@@ -1,5 +1,21 @@
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 
+// List of all 12 API keys from environment variables
+const apiKeys = [
+  process.env.GEMINI_API_KEY_1,
+  process.env.GEMINI_API_KEY_2,
+  process.env.GEMINI_API_KEY_3,
+  process.env.GEMINI_API_KEY_4,
+  process.env.GEMINI_API_KEY_5,
+  process.env.GEMINI_API_KEY_6,
+  process.env.GEMINI_API_KEY_7,
+  process.env.GEMINI_API_KEY_8,
+  process.env.GEMINI_API_KEY_9,
+  process.env.GEMINI_API_KEY_10,
+  process.env.GEMINI_API_KEY_11,
+  process.env.GEMINI_API_KEY_12
+].filter(key => key && key.trim() !== ""); // Only keep keys that actually exist
+
 exports.handler = async (event, context) => {
   const headers = {
     'Access-Control-Allow-Origin': '*',
@@ -26,18 +42,15 @@ exports.handler = async (event, context) => {
       };
     }
 
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) {
+    if (apiKeys.length === 0) {
       return {
         statusCode: 500,
         headers,
-        body: JSON.stringify({ error: 'API key not configured. Add GEMINI_API_KEY in Netlify environment variables.' })
+        body: JSON.stringify({ error: 'No API keys configured. Add GEMINI_API_KEY_1 through GEMINI_API_KEY_12 in Netlify environment variables.' })
       };
     }
 
-    const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-
+    // Build the prompt
     let prompt = `You are Nile AI Study Buddy, an expert study assistant for Nile University students. `;
     
     switch (mode) {
@@ -57,19 +70,41 @@ exports.handler = async (event, context) => {
       prompt += `\n\n---\nAdditional context from uploaded files:\n${fileContents.join('\n\n')}`;
     }
 
-    const result = await model.generateContent(prompt);
-    const aiResponse = result.response.text();
-
-    return {
-      statusCode: 200,
-      headers,
-      body: JSON.stringify({ 
-        result: aiResponse,
-        mode: mode,
-        timestamp: new Date().toISOString()
-      })
-    };
-
+    // Try each API key until one works
+    let lastError = null;
+    
+    for (let i = 0; i < apiKeys.length; i++) {
+      try {
+        console.log(`Trying API key #${i + 1}...`);
+        const genAI = new GoogleGenerativeAI(apiKeys[i]);
+        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+        
+        const result = await model.generateContent(prompt);
+        const aiResponse = result.response.text();
+        
+        console.log(`✅ API key #${i + 1} succeeded!`);
+        
+        // Success! Return response
+        return {
+          statusCode: 200,
+          headers,
+          body: JSON.stringify({ 
+            result: aiResponse,
+            mode: mode,
+            keyUsed: i + 1,  // Tells you which key worked
+            timestamp: new Date().toISOString()
+          })
+        };
+      } catch (err) {
+        lastError = err;
+        console.log(`❌ API key #${i + 1} failed:`, err.message);
+        // Continue to next key
+      }
+    }
+    
+    // All keys failed
+    throw new Error(`All ${apiKeys.length} API keys failed. Last error: ${lastError?.message}`);
+    
   } catch (error) {
     console.error('Error:', error);
     return {
