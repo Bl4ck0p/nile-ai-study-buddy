@@ -784,6 +784,22 @@
             pointer-events: auto;
         }
         
+        /* Typing animation cursor */
+        .typing-cursor {
+            display: inline-block;
+            width: 2px;
+            height: 1.2em;
+            background-color: var(--gold);
+            margin-left: 2px;
+            animation: blink 1s step-end infinite;
+            vertical-align: middle;
+        }
+        
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0; }
+        }
+        
         @media (max-width: 768px) {
             .nav-pills { top: 4.5rem; width: calc(100% - 2rem); overflow-x: auto; }
             .header-title { display: none; }
@@ -814,7 +830,6 @@
         <div class="header-left">
             <img src="https://cdn.punchng.com/wp-content/uploads/2021/06/24125436/Nile-University-logo1.jpg" class="logo">
             <span class="header-title">AI Study Buddy</span>
-            <!-- NEW CHAT BUTTON - MOVED TO TOP LEFT NEXT TO LOGO -->
             <button class="new-chat-btn" onclick="newChat()">
                 <span>✨</span> New Chat <span>+</span>
             </button>
@@ -1089,6 +1104,57 @@
             messageInput.style.height = Math.min(messageInput.scrollHeight, 150) + 'px';
         }
         
+        // ========== TYPING ANIMATION FUNCTION ==========
+        async function displayWithTypingAnimation(content) {
+            return new Promise((resolve) => {
+                const bubble = document.createElement('div');
+                bubble.className = 'stream-bubble ai';
+                
+                const avatar = '<div class="bubble-avatar"><img src="https://cdn.punchng.com/wp-content/uploads/2021/06/24125436/Nile-University-logo1.jpg"></div>';
+                const contentDiv = document.createElement('div');
+                contentDiv.className = 'bubble-content';
+                
+                bubble.innerHTML = avatar;
+                bubble.appendChild(contentDiv);
+                chatStream.appendChild(bubble);
+                
+                // Extract plain text for animation
+                const tempDiv = document.createElement('div');
+                tempDiv.innerHTML = marked.parse(content);
+                const plainText = tempDiv.textContent || tempDiv.innerText || content;
+                
+                contentDiv.innerHTML = '';
+                const cursor = document.createElement('span');
+                cursor.className = 'typing-cursor';
+                contentDiv.appendChild(cursor);
+                
+                let i = 0;
+                
+                function typeNext() {
+                    if (i < plainText.length) {
+                        const char = plainText[i];
+                        if (char === '\n') {
+                            contentDiv.insertBefore(document.createElement('br'), cursor);
+                        } else {
+                            contentDiv.insertBefore(document.createTextNode(char), cursor);
+                        }
+                        i++;
+                        const delay = 15 + Math.random() * 10; // Natural typing speed
+                        setTimeout(typeNext, delay);
+                    } else {
+                        cursor.remove();
+                        // Final render with markdown
+                        contentDiv.innerHTML = marked.parse(content);
+                        resolve();
+                        window.scrollTo(0, document.body.scrollHeight);
+                    }
+                    window.scrollTo(0, document.body.scrollHeight);
+                }
+                
+                typeNext();
+            });
+        }
+        
         async function sendMessage() {
             const text = messageInput.value.trim();
             
@@ -1176,14 +1242,15 @@
                 });
                 saveSessions();
                 
-                displayBubble('ai', data.result);
+                // Use typing animation for AI responses
+                await displayWithTypingAnimation(data.result);
                 
                 showAlert('success', 'Response received!');
                 
             } catch (err) {
                 thinkingOrb.classList.remove('show');
                 console.error('API Error:', err);
-                displayBubble('ai', `❌ **Error:** ${err.message}\n\nPlease check that:\n1. You've added GEMINI_API_KEY in Netlify environment variables\n2. Your API key is valid\n3. You have internet connection`);
+                await displayWithTypingAnimation(`❌ **Error:** ${err.message}\n\nPlease check that:\n1. You've added GEMINI_API_KEY in Netlify environment variables\n2. Your API key is valid\n3. You have internet connection`);
                 showAlert('error', 'Failed to get AI response: ' + err.message);
             } finally {
                 isProcessing = false;
