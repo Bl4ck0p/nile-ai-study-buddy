@@ -77,7 +77,7 @@ exports.handler = async (event, context) => {
       try {
         console.log(`Trying API key #${i + 1}...`);
         const genAI = new GoogleGenerativeAI(apiKeys[i]);
-        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+        const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
         
         const result = await model.generateContent(prompt);
         const aiResponse = result.response.text();
