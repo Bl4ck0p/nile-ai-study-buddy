@@ -174,15 +174,9 @@
         }
         
         @keyframes glowPulse {
-            0% {
-                box-shadow: 0 2px 10px rgba(0,0,0,0.2), 0 0 0 0 rgba(201, 162, 39, 0.6);
-            }
-            70% {
-                box-shadow: 0 2px 10px rgba(0,0,0,0.2), 0 0 0 8px rgba(201, 162, 39, 0);
-            }
-            100% {
-                box-shadow: 0 2px 10px rgba(0,0,0,0.2), 0 0 0 0 rgba(201, 162, 39, 0);
-            }
+            0% { box-shadow: 0 2px 10px rgba(0,0,0,0.2), 0 0 0 0 rgba(201, 162, 39, 0.6); }
+            70% { box-shadow: 0 2px 10px rgba(0,0,0,0.2), 0 0 0 8px rgba(201, 162, 39, 0); }
+            100% { box-shadow: 0 2px 10px rgba(0,0,0,0.2), 0 0 0 0 rgba(201, 162, 39, 0); }
         }
         
         .nav-pills {
@@ -214,11 +208,7 @@
             font-size: 0.9rem;
         }
         
-        .nav-pill:hover {
-            background: var(--sand);
-            color: var(--navy);
-        }
-        
+        .nav-pill:hover { background: var(--sand); color: var(--navy); }
         .nav-pill.active {
             background: var(--navy);
             color: var(--gold);
@@ -316,20 +306,14 @@
         }
         
         .mode-card:hover::before { transform: scaleX(1); }
-        
         .mode-card:hover {
             background: var(--navy);
             transform: translateY(-8px);
             box-shadow: 0 20px 40px rgba(26, 35, 126, 0.2);
         }
-        
         .mode-card:hover .mode-title,
         .mode-card:hover .mode-desc { color: var(--white); }
-        
-        .mode-card:hover .mode-icon {
-            background: var(--gold);
-            color: var(--navy);
-        }
+        .mode-card:hover .mode-icon { background: var(--gold); color: var(--navy); }
         
         .mode-icon {
             width: 50px; height: 50px;
@@ -351,10 +335,7 @@
             margin-bottom: 0.5rem;
         }
         
-        .mode-desc {
-            color: var(--gray-600);
-            font-size: 0.9rem;
-        }
+        .mode-desc { color: var(--gray-600); font-size: 0.9rem; }
         
         .orbital-input {
             position: fixed;
@@ -382,17 +363,8 @@
             to { opacity: 1; transform: translateY(0); }
         }
         
-        .alert-error {
-            background: #ffebee;
-            color: var(--error);
-            border: 1px solid #ffcdd2;
-        }
-        
-        .alert-success {
-            background: #e8f5e9;
-            color: var(--success);
-            border: 1px solid #c8e6c9;
-        }
+        .alert-error { background: #ffebee; color: var(--error); border: 1px solid #ffcdd2; }
+        .alert-success { background: #e8f5e9; color: var(--success); border: 1px solid #c8e6c9; }
         
         .file-constellation {
             display: none;
@@ -802,7 +774,7 @@
             height: 1.2em;
             background-color: var(--gold);
             margin-left: 2px;
-            animation: blink 1s step-end infinite;
+            animation: blink 0.8s step-end infinite;
             vertical-align: middle;
         }
         
@@ -937,6 +909,9 @@
         let currentSessionId = null;
         let isProcessing = false;
         
+        // SCROLL FIX: Track if the user has scrolled up during generation
+        let isUserScrolling = false;
+
         const messageInput = document.getElementById('messageInput');
         const fileInput = document.getElementById('fileInput');
         const fileConstellation = document.getElementById('fileConstellation');
@@ -952,6 +927,16 @@
         
         const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
         
+        // Listen for scrolling to stop auto-scroll
+        window.addEventListener('scroll', () => {
+            const isAtBottom = window.innerHeight + window.scrollY >= document.body.offsetHeight - 50;
+            if (!isAtBottom && isProcessing) {
+                isUserScrolling = true;
+            } else if (isAtBottom) {
+                isUserScrolling = false;
+            }
+        });
+
         messageInput.addEventListener('input', function() {
             this.style.height = 'auto';
             this.style.height = Math.min(this.scrollHeight, 150) + 'px';
@@ -1141,7 +1126,6 @@
                     const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
                     let text = '';
                     
-                    // 1. Try to extract text
                     for (let i = 1; i <= pdf.numPages; i++) {
                         const page = await pdf.getPage(i);
                         const content = await page.getTextContent();
@@ -1150,11 +1134,9 @@
                     
                     fileData.extractedText = text.trim();
                     
-                    // 2. If NO text was found (scanned PDF), render pages to images!
                     if (fileData.extractedText.length < 20) {
                         console.log('PDF has no text layer. Rendering as images for Gemini Vision...');
                         fileData.pdfImages = [];
-                        
                         const pagesToRender = Math.min(pdf.numPages, 3);
                         
                         for (let i = 1; i <= pagesToRender; i++) {
@@ -1243,15 +1225,26 @@
                             contentDiv.insertBefore(document.createTextNode(char), cursor);
                         }
                         i++;
-                        const delay = 12 + Math.random() * 8;
+                        
+                        // SPEED FIX: Changed delay from 12ms to 2ms (super fast)
+                        const delay = 1 + Math.random() * 2; 
+                        
+                        // SCROLL FIX: Only auto-scroll if the user hasn't scrolled up
+                        if (!isUserScrolling) {
+                            window.scrollTo(0, document.body.scrollHeight);
+                        }
+                        
                         setTimeout(typeNext, delay);
                     } else {
                         cursor.remove();
                         contentDiv.innerHTML = marked.parse(content);
                         resolve();
-                        window.scrollTo(0, document.body.scrollHeight);
+                        
+                        // Final scroll check
+                        if (!isUserScrolling) {
+                            window.scrollTo(0, document.body.scrollHeight);
+                        }
                     }
-                    window.scrollTo(0, document.body.scrollHeight);
                 }
                 
                 typeNext();
@@ -1332,13 +1325,14 @@
             fileConstellation.innerHTML = '';
             fileConstellation.classList.remove('show');
             isProcessing = true;
+            isUserScrolling = false; // Reset scroll lock for new message
             sendBtn.disabled = true;
             setStatus('busy');
             
             thinkingOrb.classList.add('show');
+            window.scrollTo(0, document.body.scrollHeight);
             
             try {
-                // Grab the chat history to give the AI memory
                 const chatHistory = session.messages.slice(-10).map(msg => ({
                     role: msg.role,
                     content: msg.content
@@ -1352,7 +1346,7 @@
                         mode: currentMode,
                         fileContents: fileContents,
                         images: images,
-                        chatHistory: chatHistory // Send the history here
+                        chatHistory: chatHistory
                     })
                 });
                 
