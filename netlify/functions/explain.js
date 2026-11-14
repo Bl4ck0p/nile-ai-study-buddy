@@ -59,7 +59,7 @@ exports.handler = async (event, context) => {
 
     switch (mode) {
       case 'summarize':
-        prompt += `Provide a comprehensive but concise summary using bullet points. Do not leave out important details.\n\n`;
+        prompt += `Provide a comprehensive summary using bullet points. Do not leave out important details.\n\n`;
         break;
       case 'quiz':
         prompt += `Create a comprehensive practice quiz. Provide 5-8 questions with multiple-choice options. Format EXACTLY like this for each question:
@@ -76,8 +76,15 @@ Use this exact format. Do not stop generating until you have finished all questi
         break;
       case 'explain':
       default:
-        // REMOVED the 150-word limit. Added instructions for thoroughness.
-        prompt += `Explain the following material thoroughly and in detail. Break down complex concepts into easy-to-understand parts. Do NOT cut off mid-sentence or mid-thought. Give the student a complete understanding of the topic. If the user asks you to "continue", pick up exactly where the last explanation left off and elaborate further.\n\n`;
+        // UPDATED: Strict 500-word limit, summarizing everything, and asking for feedback
+        prompt += `CRITICAL INSTRUCTIONS FOR EXPLAIN MODE:
+1. Explain the following material in a comprehensive but concise way.
+2. HARD LIMIT: Your explanation MUST NOT exceed 500 words.
+3. You must summarize all the key points to fit within this 500-word limit without cutting off mid-sentence.
+4. At the very end of your response, always ask the student a question like "Does this make sense, or would you like me to continue with more details?"
+5. If the user says "continue", pick up exactly where you left off, but keep the response under 500 words and ask for feedback again.
+
+MATERIAL TO EXPLAIN:\n\n`;
     }
 
     if (hasImages && !hasText && !hasFiles) {
@@ -134,11 +141,12 @@ Use this exact format. Do not stop generating until you have finished all questi
       try {
         const genAI = new GoogleGenerativeAI(apiKeys[i]);
         
-        // Added generationConfig to allow for much longer responses
         const model = genAI.getGenerativeModel({ 
             model: "gemini-2.5-flash",
             generationConfig: {
-                maxOutputTokens: 8192, // Increased from default to allow long essays
+                // 500 words is roughly 750-1000 tokens. Setting this to 2048 ensures it doesn't hard-stop mid-sentence,
+                // allowing the AI to naturally finish its thought and ask for feedback.
+                maxOutputTokens: 2048, 
                 temperature: 0.7,
             }
         });
