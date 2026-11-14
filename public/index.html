@@ -909,8 +909,9 @@
         let currentSessionId = null;
         let isProcessing = false;
         
-        // SCROLL FIX: Track if the user has scrolled up during generation
+        // SCROLL FIX VARIABLES
         let isUserScrolling = false;
+        let lastScrollTime = 0;
 
         const messageInput = document.getElementById('messageInput');
         const fileInput = document.getElementById('fileInput');
@@ -927,9 +928,9 @@
         
         const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
         
-        // Listen for scrolling to stop auto-scroll
+        // SCROLL FIX: Detect if the user manually scrolls up
         window.addEventListener('scroll', () => {
-            const isAtBottom = window.innerHeight + window.scrollY >= document.body.offsetHeight - 50;
+            const isAtBottom = window.innerHeight + window.scrollY >= document.body.offsetHeight - 150;
             if (!isAtBottom && isProcessing) {
                 isUserScrolling = true;
             } else if (isAtBottom) {
@@ -1226,12 +1227,13 @@
                         }
                         i++;
                         
-                        // SPEED FIX: Changed delay from 12ms to 2ms (super fast)
                         const delay = 1 + Math.random() * 2; 
                         
-                        // SCROLL FIX: Only auto-scroll if the user hasn't scrolled up
-                        if (!isUserScrolling) {
+                        // SCROLL FIX: Only scroll every 100ms to prevent the "glitchy" vibration
+                        const now = Date.now();
+                        if (!isUserScrolling && (now - lastScrollTime > 100)) {
                             window.scrollTo(0, document.body.scrollHeight);
+                            lastScrollTime = now;
                         }
                         
                         setTimeout(typeNext, delay);
@@ -1325,7 +1327,8 @@
             fileConstellation.innerHTML = '';
             fileConstellation.classList.remove('show');
             isProcessing = true;
-            isUserScrolling = false; // Reset scroll lock for new message
+            isUserScrolling = false; 
+            lastScrollTime = Date.now();
             sendBtn.disabled = true;
             setStatus('busy');
             
