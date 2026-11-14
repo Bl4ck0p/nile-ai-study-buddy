@@ -55,7 +55,9 @@ exports.handler = async (event, context) => {
     }
 
     // 1. Build the system prompt text
-    let prompt = `You are Nile AI Study Buddy, an expert academic tutor. `;
+    let prompt = `You are Nile AI Study Buddy, an expert academic tutor. 
+IMPORTANT: Whenever you write math, ALWAYS use standard LaTeX formatting wrapped in $ signs (e.g. $x^2$ or $$\\int x dx$$). NEVER use raw unformatted math symbols. Use proper Markdown formatting for everything else.
+`;
 
     switch (mode) {
       case 'summarize':
@@ -76,7 +78,6 @@ Use this exact format. Do not stop generating until you have finished all questi
         break;
       case 'explain':
       default:
-        // REWRITTEN PROMPT: Forces structure, brevity, and the exact question at the end
         prompt += `CRITICAL INSTRUCTIONS FOR EXPLAIN MODE:
 1. Provide a highly condensed, summarized explanation of the material below. Use bullet points or short paragraphs.
 2. DO NOT exceed 400 words in your main explanation.
@@ -126,7 +127,6 @@ MATERIAL TO EXPLAIN:\n\n`;
       });
     }
 
-    // Add the current message with images to the end of the history
     contents.push({
       role: 'user',
       parts: currentParts
@@ -142,17 +142,14 @@ MATERIAL TO EXPLAIN:\n\n`;
         const model = genAI.getGenerativeModel({ 
             model: "gemini-2.5-flash",
             generationConfig: {
-                // Plenty of token room so it never hits a hard cutoff mid-sentence. 
-                // The prompt forces it to stay under 400 words.
                 maxOutputTokens: 2048, 
-                temperature: 0.6, // Slightly lower temperature to make it follow instructions strictly
+                temperature: 0.6, 
             }
         });
 
         const result = await model.generateContent({ contents });
         let aiResponse = result.response.text();
 
-        // Failsafe: If the AI somehow forgets the question, force it onto the end.
         if (mode === 'explain' && !aiResponse.includes("Would you like me to continue")) {
             aiResponse += "\n\n**Would you like me to continue with more details or move on to a specific part?**";
         }
