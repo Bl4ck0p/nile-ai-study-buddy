@@ -55,14 +55,14 @@ exports.handler = async (event, context) => {
     }
 
     // 1. Build the system prompt text
-    let prompt = `You are Nile AI Study Buddy. Be concise and clear. `;
+    let prompt = `You are Nile AI Study Buddy, an expert academic tutor. `;
 
     switch (mode) {
       case 'summarize':
-        prompt += `Summarize this in 3-5 bullet points only:\n\n`;
+        prompt += `Provide a comprehensive but concise summary using bullet points. Do not leave out important details.\n\n`;
         break;
       case 'quiz':
-        prompt += `Create 5 multiple-choice questions. Format EXACTLY like this for each question:
+        prompt += `Create a comprehensive practice quiz. Provide 5-8 questions with multiple-choice options. Format EXACTLY like this for each question:
 
 1. [Question text here]
 A. [Option A]
@@ -72,11 +72,12 @@ D. [Option D]
 Correct Answer: [A/B/C/D]
 Explanation: [Brief explanation]
 
-Use this exact format.`;
+Use this exact format. Do not stop generating until you have finished all questions.\n\n`;
         break;
       case 'explain':
       default:
-        prompt += `Explain this briefly in simple terms. If the user says "continue", pick up exactly where the last explanation left off.\n\n`;
+        // REMOVED the 150-word limit. Added instructions for thoroughness.
+        prompt += `Explain the following material thoroughly and in detail. Break down complex concepts into easy-to-understand parts. Do NOT cut off mid-sentence or mid-thought. Give the student a complete understanding of the topic. If the user asks you to "continue", pick up exactly where the last explanation left off and elaborate further.\n\n`;
     }
 
     if (hasImages && !hasText && !hasFiles) {
@@ -86,7 +87,7 @@ Use this exact format.`;
     }
 
     if (hasFiles) {
-      prompt += `\n\nContext:\n${fileContents.join('\n').substring(0, 1500)}`;
+      prompt += `\n\nDOCUMENT CONTEXT TO ANALYZE:\n${fileContents.join('\n').substring(0, 3000)}`;
     }
 
     // 2. Build the multimodal parts array for the CURRENT message
@@ -112,7 +113,6 @@ Use this exact format.`;
       const historyToFormat = chatHistory.slice(0, -1);
       
       historyToFormat.forEach(msg => {
-        // Gemini expects 'user' or 'model' for roles
         const role = msg.role === 'assistant' ? 'model' : 'user';
         contents.push({
           role: role,
@@ -133,7 +133,15 @@ Use this exact format.`;
     for (let i = 0; i < apiKeys.length; i++) {
       try {
         const genAI = new GoogleGenerativeAI(apiKeys[i]);
-        const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+        
+        // Added generationConfig to allow for much longer responses
+        const model = genAI.getGenerativeModel({ 
+            model: "gemini-2.5-flash",
+            generationConfig: {
+                maxOutputTokens: 8192, // Increased from default to allow long essays
+                temperature: 0.7,
+            }
+        });
 
         // Send the entire history + current message
         const result = await model.generateContent({ contents });
