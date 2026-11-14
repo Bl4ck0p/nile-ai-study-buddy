@@ -76,13 +76,12 @@ Use this exact format. Do not stop generating until you have finished all questi
         break;
       case 'explain':
       default:
-        // UPDATED: Strict 500-word limit, summarizing everything, and asking for feedback
+        // REWRITTEN PROMPT: Forces structure, brevity, and the exact question at the end
         prompt += `CRITICAL INSTRUCTIONS FOR EXPLAIN MODE:
-1. Explain the following material in a comprehensive but concise way.
-2. HARD LIMIT: Your explanation MUST NOT exceed 500 words.
-3. You must summarize all the key points to fit within this 500-word limit without cutting off mid-sentence.
-4. At the very end of your response, always ask the student a question like "Does this make sense, or would you like me to continue with more details?"
-5. If the user says "continue", pick up exactly where you left off, but keep the response under 500 words and ask for feedback again.
+1. Provide a highly condensed, summarized explanation of the material below. Use bullet points or short paragraphs.
+2. DO NOT exceed 400 words in your main explanation.
+3. Ensure you finish your thought completely and do not cut off mid-sentence.
+4. You MUST append exactly this text at the very end of your response on a new line: "**Would you like me to continue with more details or move on to a specific part?**"
 
 MATERIAL TO EXPLAIN:\n\n`;
     }
@@ -116,7 +115,6 @@ MATERIAL TO EXPLAIN:\n\n`;
     const contents = [];
     
     if (Array.isArray(chatHistory) && chatHistory.length > 0) {
-      // Exclude the very last message in history (it's the current one we just built above)
       const historyToFormat = chatHistory.slice(0, -1);
       
       historyToFormat.forEach(msg => {
@@ -144,16 +142,20 @@ MATERIAL TO EXPLAIN:\n\n`;
         const model = genAI.getGenerativeModel({ 
             model: "gemini-2.5-flash",
             generationConfig: {
-                // 500 words is roughly 750-1000 tokens. Setting this to 2048 ensures it doesn't hard-stop mid-sentence,
-                // allowing the AI to naturally finish its thought and ask for feedback.
+                // Plenty of token room so it never hits a hard cutoff mid-sentence. 
+                // The prompt forces it to stay under 400 words.
                 maxOutputTokens: 2048, 
-                temperature: 0.7,
+                temperature: 0.6, // Slightly lower temperature to make it follow instructions strictly
             }
         });
 
-        // Send the entire history + current message
         const result = await model.generateContent({ contents });
-        const aiResponse = result.response.text();
+        let aiResponse = result.response.text();
+
+        // Failsafe: If the AI somehow forgets the question, force it onto the end.
+        if (mode === 'explain' && !aiResponse.includes("Would you like me to continue")) {
+            aiResponse += "\n\n**Would you like me to continue with more details or move on to a specific part?**";
+        }
 
         return {
           statusCode: 200,
