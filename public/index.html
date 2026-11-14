@@ -145,7 +145,6 @@
             opacity: 0.8;
         }
         
-        /* ========== NEW CHAT BUTTON - TOP LEFT ========== */
         .new-chat-btn {
             display: flex;
             align-items: center;
@@ -432,6 +431,7 @@
             display: flex;
             align-items: center;
             justify-content: center;
+            flex-shrink: 0;
         }
         
         .file-star img {
@@ -439,6 +439,7 @@
             border-radius: 8px;
             object-fit: cover;
             border: 2px solid var(--gold);
+            flex-shrink: 0;
         }
         
         .file-star-info { display: flex; flex-direction: column; }
@@ -461,6 +462,7 @@
             border-radius: 50%;
             animation: spin 1s linear infinite;
             margin-left: 0.5rem;
+            vertical-align: middle;
         }
         
         @keyframes spin { to { transform: rotate(360deg); } }
@@ -474,6 +476,8 @@
             color: white;
             border: none;
             cursor: pointer;
+            font-size: 1rem;
+            line-height: 1;
         }
         
         .input-core {
@@ -503,6 +507,7 @@
             justify-content: center;
             font-size: 1.25rem;
             transition: all 0.3s;
+            flex-shrink: 0;
         }
         
         .attach-orb:hover { transform: scale(1.1) rotate(15deg); }
@@ -534,6 +539,7 @@
             justify-content: center;
             font-size: 1.25rem;
             transition: all 0.3s;
+            flex-shrink: 0;
         }
         
         .send-orb:hover:not(:disabled) {
@@ -587,6 +593,7 @@
             justify-content: center;
             font-weight: 700;
             font-size: 0.85rem;
+            flex-shrink: 0;
         }
         
         .stream-bubble.user .bubble-avatar {
@@ -607,6 +614,7 @@
             border-radius: 16px;
             line-height: 1.7;
             box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+            min-width: 0;
         }
         
         .stream-bubble.user .bubble-content {
@@ -633,6 +641,7 @@
             border-radius: 12px;
             display: flex;
             gap: 1rem;
+            align-items: center;
         }
         
         .stream-bubble.ai .bubble-attachment { background: var(--gray-100); }
@@ -642,7 +651,6 @@
             border-radius: 8px;
             object-fit: cover;
             border: 2px solid var(--gold);
-            cursor: pointer;
         }
         
         .attachment-icon {
@@ -654,6 +662,7 @@
             align-items: center;
             justify-content: center;
             font-size: 1.5rem;
+            flex-shrink: 0;
         }
         
         .thinking-orb {
@@ -672,6 +681,7 @@
             border-radius: 20px;
             box-shadow: 0 4px 20px rgba(0,0,0,0.08);
             border: 1px solid var(--gray-200);
+            align-items: center;
         }
         
         .pulse-dots { display: flex; gap: 6px; }
@@ -713,6 +723,7 @@
             color: var(--white);
             display: flex;
             justify-content: space-between;
+            align-items: center;
         }
         
         .drawer-title {
@@ -728,6 +739,7 @@
             background: rgba(255,255,255,0.2);
             color: var(--white);
             cursor: pointer;
+            font-size: 1.2rem;
         }
         
         .drawer-content {
@@ -784,7 +796,6 @@
             pointer-events: auto;
         }
         
-        /* Typing animation cursor */
         .typing-cursor {
             display: inline-block;
             width: 2px;
@@ -807,10 +818,7 @@
             .mode-constellation { grid-template-columns: 1fr; }
             .stream-bubble { max-width: 95%; }
             .history-drawer { width: 100%; right: -100%; }
-            .new-chat-btn { 
-                padding: 0.4rem 1rem;
-                font-size: 0.8rem;
-            }
+            .new-chat-btn { padding: 0.4rem 1rem; font-size: 0.8rem; }
             .new-chat-btn span:first-child { font-size: 1rem; }
         }
         
@@ -854,7 +862,7 @@
         <div class="welcome" id="welcomeSection">
             <div class="greeting-badge">Nile University • AI Study Assistant</div>
             <h1>Hello, Nile Student! <span class="wave">👋</span></h1>
-            <p>Upload past questions or lecture notes and get clear explanations, summaries, and practice quizzes.</p>
+            <p>Upload past questions, lecture notes, or photos of diagrams and get clear explanations, summaries, and practice quizzes.</p>
             
             <div class="mode-constellation">
                 <div class="mode-card" onclick="quickStart('Explain this step by step')">
@@ -904,7 +912,7 @@
                        accept=".pdf,.doc,.docx,.txt,.png,.jpg,.jpeg,.gif,.webp">
                 <button class="attach-orb" onclick="document.getElementById('fileInput').click()">📎</button>
                 <textarea class="message-input" id="messageInput" 
-                          placeholder="Paste your question or upload notes..." rows="1"></textarea>
+                          placeholder="Paste your question or upload notes/photos..." rows="1"></textarea>
                 <button class="send-orb" id="sendBtn" onclick="sendMessage()">➤</button>
             </div>
             <p class="footer-note">AI can make mistakes. Please verify important information.</p>
@@ -941,6 +949,8 @@
         const statusDot = document.getElementById('statusDot');
         const statusText = document.getElementById('statusText');
         const keyIndicator = document.getElementById('keyIndicator');
+        
+        const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
         
         messageInput.addEventListener('input', function() {
             this.style.height = 'auto';
@@ -987,16 +997,63 @@
         
         fileInput.addEventListener('change', handleFiles);
         
+        async function compressImage(file, maxDim = 1600) {
+            return new Promise((resolve, reject) => {
+                const img = new Image();
+                const url = URL.createObjectURL(file);
+                img.onload = () => {
+                    URL.revokeObjectURL(url);
+                    const scale = Math.min(1, maxDim / Math.max(img.width, img.height));
+                    const canvas = document.createElement('canvas');
+                    canvas.width = Math.round(img.width * scale);
+                    canvas.height = Math.round(img.height * scale);
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                    resolve(canvas.toDataURL('image/jpeg', 0.85));
+                };
+                img.onerror = (e) => {
+                    URL.revokeObjectURL(url);
+                    reject(e);
+                };
+                img.src = url;
+            });
+        }
+        
+        function makeThumb(dataUrl, size = 100) {
+            return new Promise((resolve) => {
+                const img = new Image();
+                img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    canvas.width = canvas.height = size;
+                    const ctx = canvas.getContext('2d');
+                    const s = Math.min(img.width, img.height);
+                    ctx.drawImage(img, (img.width - s) / 2, (img.height - s) / 2, s, s, 0, 0, size, size);
+                    resolve(canvas.toDataURL('image/jpeg', 0.6));
+                };
+                img.onerror = () => resolve(null);
+                img.src = dataUrl;
+            });
+        }
+        
         async function handleFiles(e) {
             const files = Array.from(e.target.files);
+            fileInput.value = '';
             
             for (const file of files) {
+                const isImage = file.type.startsWith('image/');
+                
+                if (isImage && file.size > MAX_IMAGE_BYTES) {
+                    showAlert('error', `${file.name} is too large (max 5MB)`);
+                    continue;
+                }
+                
                 const fileData = {
                     id: Date.now() + Math.random(),
                     file: file,
                     name: file.name,
                     type: file.type,
                     dataUrl: null,
+                    thumb: null,
                     extractedText: '',
                     processing: true
                 };
@@ -1005,22 +1062,15 @@
                 star.className = 'file-star processing';
                 star.id = `star-${fileData.id}`;
                 
-                const isImage = file.type.startsWith('image/');
-                
                 if (isImage) {
-                    const reader = new FileReader();
-                    reader.onload = (e) => {
-                        fileData.dataUrl = e.target.result;
-                        star.innerHTML = `
-                            <img src="${e.target.result}">
-                            <div class="file-star-info">
-                                <div class="file-star-name">${file.name}</div>
-                                <div class="file-star-type">Processing<span class="processing-indicator"></span></div>
-                            </div>
-                            <button class="file-star-remove" onclick="removeFile('${fileData.id}')">×</button>
-                        `;
-                    };
-                    reader.readAsDataURL(file);
+                    star.innerHTML = `
+                        <div class="file-star-icon">🖼️</div>
+                        <div class="file-star-info">
+                            <div class="file-star-name">${file.name}</div>
+                            <div class="file-star-type">Compressing<span class="processing-indicator"></span></div>
+                        </div>
+                        <button class="file-star-remove" onclick="removeFile('${fileData.id}')">×</button>
+                    `;
                 } else {
                     let icon = '📎';
                     if (file.type === 'application/pdf') icon = '📄';
@@ -1048,6 +1098,13 @@
                     updatedStar.classList.remove('processing');
                     const typeDiv = updatedStar.querySelector('.file-star-type');
                     if (typeDiv) typeDiv.textContent = isImage ? 'Image ready' : getFileType(file);
+                    
+                    if (isImage && fileData.thumb) {
+                        const iconEl = updatedStar.querySelector('.file-star-icon');
+                        if (iconEl) {
+                            iconEl.outerHTML = `<img src="${fileData.thumb}" alt="">`;
+                        }
+                    }
                 }
                 fileData.processing = false;
             }
@@ -1055,7 +1112,7 @@
         
         function getFileType(file) {
             if (file.type === 'application/pdf') return 'PDF ready';
-            if (file.name.endsWith('.docx')) return 'Word doc ready';
+            if (file.name && file.name.endsWith('.docx')) return 'Word doc ready';
             if (file.type === 'text/plain') return 'Text ready';
             return 'File ready';
         }
@@ -1063,8 +1120,21 @@
         async function extractText(fileData) {
             try {
                 if (fileData.type.startsWith('image/')) {
-                    const result = await Tesseract.recognize(fileData.file, 'eng');
-                    fileData.extractedText = result.data.text;
+                    try {
+                        fileData.dataUrl = await compressImage(fileData.file, 1600);
+                        fileData.thumb = await makeThumb(fileData.dataUrl, 100);
+                    } catch (e) {
+                        console.warn('Image compression failed:', e);
+                    }
+                    
+                    try {
+                        const result = await Tesseract.recognize(fileData.file, 'eng');
+                        fileData.extractedText = (result.data.text || '').trim();
+                    } catch (e) {
+                        console.warn('OCR failed (Gemini vision will handle image):', e);
+                        fileData.extractedText = '';
+                    }
+                    
                 } else if (fileData.type === 'application/pdf') {
                     const arrayBuffer = await fileData.file.arrayBuffer();
                     const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
@@ -1075,10 +1145,12 @@
                         text += content.items.map(item => item.str).join(' ') + '\n';
                     }
                     fileData.extractedText = text;
-                } else if (fileData.name.endsWith('.docx')) {
+                    
+                } else if (fileData.name && fileData.name.endsWith('.docx')) {
                     const arrayBuffer = await fileData.file.arrayBuffer();
                     const result = await mammoth.extractRawText({ arrayBuffer });
                     fileData.extractedText = result.value;
+                    
                 } else if (fileData.type === 'text/plain') {
                     fileData.extractedText = await fileData.file.text();
                 }
@@ -1104,7 +1176,6 @@
             messageInput.style.height = Math.min(messageInput.scrollHeight, 150) + 'px';
         }
         
-        // ========== TYPING ANIMATION FUNCTION ==========
         async function displayWithTypingAnimation(content) {
             return new Promise((resolve) => {
                 const bubble = document.createElement('div');
@@ -1118,7 +1189,6 @@
                 bubble.appendChild(contentDiv);
                 chatStream.appendChild(bubble);
                 
-                // Extract plain text for animation
                 const tempDiv = document.createElement('div');
                 tempDiv.innerHTML = marked.parse(content);
                 const plainText = tempDiv.textContent || tempDiv.innerText || content;
@@ -1139,11 +1209,10 @@
                             contentDiv.insertBefore(document.createTextNode(char), cursor);
                         }
                         i++;
-                        const delay = 15 + Math.random() * 10; // Natural typing speed
+                        const delay = 12 + Math.random() * 8;
                         setTimeout(typeNext, delay);
                     } else {
                         cursor.remove();
-                        // Final render with markdown
                         contentDiv.innerHTML = marked.parse(content);
                         resolve();
                         window.scrollTo(0, document.body.scrollHeight);
@@ -1186,18 +1255,32 @@
             
             const session = conversations.find(c => c.id === currentSessionId);
             
-            let displayContent = text || '[File upload]';
-            let fullText = text || '';
+            const displayContent = text || '[File upload]';
+            const fullText = text || '';
             const fileContents = [];
+            const images = [];
             
             attachedFiles.forEach(f => {
-                if (f.extractedText) fileContents.push(f.extractedText.substring(0, 2000));
+                if (f.type.startsWith('image/') && f.dataUrl) {
+                    images.push({
+                        mimeType: 'image/jpeg',
+                        data: f.dataUrl.split(',')[1]
+                    });
+                } else if (f.extractedText) {
+                    fileContents.push(f.extractedText.substring(0, 4000));
+                }
             });
+            
+            const attachmentRecords = await Promise.all(attachedFiles.map(async f => ({
+                name: f.name,
+                type: f.type,
+                thumb: f.thumb || (f.dataUrl ? await makeThumb(f.dataUrl, 100) : null)
+            })));
             
             const userMsg = {
                 role: 'user',
                 content: displayContent,
-                files: attachedFiles.map(f => ({ name: f.name, type: f.type, dataUrl: f.dataUrl })),
+                files: attachmentRecords,
                 timestamp: new Date().toISOString()
             };
             session.messages.push(userMsg);
@@ -1205,11 +1288,10 @@
             
             welcomeSection.style.display = 'none';
             chatStream.classList.add('show');
-            displayBubble('user', displayContent, attachedFiles);
+            displayBubble('user', displayContent, attachmentRecords);
             
             messageInput.value = '';
             messageInput.style.height = 'auto';
-            const filesToSend = [...attachedFiles];
             attachedFiles = [];
             fileConstellation.innerHTML = '';
             fileConstellation.classList.remove('show');
@@ -1226,7 +1308,8 @@
                     body: JSON.stringify({
                         text: fullText,
                         mode: currentMode,
-                        fileContents: fileContents
+                        fileContents: fileContents,
+                        images: images
                     })
                 });
                 
@@ -1235,6 +1318,10 @@
                 
                 if (data.error) throw new Error(data.error);
                 
+                if (data.keyUsed) {
+                    keyIndicator.textContent = `Key ${data.keyUsed}`;
+                }
+                
                 session.messages.push({
                     role: 'assistant',
                     content: data.result,
@@ -1242,7 +1329,6 @@
                 });
                 saveSessions();
                 
-                // Use typing animation for AI responses
                 await displayWithTypingAnimation(data.result);
                 
                 showAlert('success', 'Response received!');
@@ -1250,7 +1336,7 @@
             } catch (err) {
                 thinkingOrb.classList.remove('show');
                 console.error('API Error:', err);
-                await displayWithTypingAnimation(`❌ **Error:** ${err.message}\n\nPlease check that:\n1. You've added GEMINI_API_KEY in Netlify environment variables\n2. Your API key is valid\n3. You have internet connection`);
+                await displayWithTypingAnimation(`❌ **Error:** ${err.message}\n\nPlease check that:\n1. Your GEMINI_API_KEY_1..12 env vars are set in Netlify\n2. At least one key is valid\n3. You have internet connection`);
                 showAlert('error', 'Failed to get AI response: ' + err.message);
             } finally {
                 isProcessing = false;
@@ -1269,15 +1355,15 @@
             
             const contentDiv = document.createElement('div');
             contentDiv.className = 'bubble-content';
-            contentDiv.innerHTML = marked.parse(content);
+            contentDiv.innerHTML = marked.parse(content || '');
             
             files.forEach(file => {
                 const attachment = document.createElement('div');
                 attachment.className = 'bubble-attachment';
                 
-                if (file.dataUrl) {
+                if (file.thumb) {
                     attachment.innerHTML = `
-                        <img src="${file.dataUrl}" class="attachment-thumb" onclick="window.open('${file.dataUrl}')">
+                        <img src="${file.thumb}" class="attachment-thumb">
                         <div class="attachment-info">
                             <div class="attachment-name">${file.name}</div>
                             <div class="attachment-type">Image</div>
@@ -1286,14 +1372,14 @@
                 } else {
                     let icon = '📎';
                     if (file.type === 'application/pdf') icon = '📄';
-                    else if (file.name?.endsWith('.docx')) icon = '📘';
+                    else if (file.name && file.name.endsWith('.docx')) icon = '📘';
                     else if (file.type === 'text/plain') icon = '📝';
                     
                     attachment.innerHTML = `
                         <div class="attachment-icon">${icon}</div>
                         <div class="attachment-info">
                             <div class="attachment-name">${file.name}</div>
-                            <div class="attachment-type">${getFileType(file)}</div>
+                            <div class="attachment-type">${file.type ? getFileType(file) : 'File'}</div>
                         </div>
                     `;
                 }
@@ -1373,7 +1459,17 @@
         }
         
         function saveSessions() {
-            localStorage.setItem('nile_sessions', JSON.stringify(conversations));
+            try {
+                localStorage.setItem('nile_sessions', JSON.stringify(conversations));
+            } catch (e) {
+                console.warn('localStorage quota hit, trimming old sessions');
+                conversations = conversations.slice(-10);
+                try {
+                    localStorage.setItem('nile_sessions', JSON.stringify(conversations));
+                } catch (e2) {
+                    console.error('Still failing, clearing history storage', e2);
+                }
+            }
         }
         
         updateHistory();
