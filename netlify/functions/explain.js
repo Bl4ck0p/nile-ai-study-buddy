@@ -32,7 +32,7 @@ exports.handler = async (event, context) => {
   }
 
   try {
-    const { text, mode, fileContents, images } = JSON.parse(event.body);
+    const { text, mode, fileContents, images, chatHistory } = JSON.parse(event.body);
 
     const hasImages = Array.isArray(images) && images.length > 0;
     const hasText = text && text.trim().length > 0;
@@ -54,7 +54,7 @@ exports.handler = async (event, context) => {
       };
     }
 
-    // Build the prompt text
+    // 1. Build the system prompt text
     let prompt = `You are Nile AI Study Buddy. Be concise and clear. `;
 
     switch (mode) {
@@ -76,11 +76,11 @@ Use this exact format.`;
         break;
       case 'explain':
       default:
-        prompt += `Explain this briefly in simple terms (max 150 words):\n\n`;
+        prompt += `Explain this briefly in simple terms. If the user says "continue", pick up exactly where the last explanation left off.\n\n`;
     }
 
     if (hasImages && !hasText && !hasFiles) {
-      prompt += `Analyze the attached image(s) — this may be a photo of a past question, lecture notes, handwritten equation, or diagram. Read the content carefully and respond according to the mode above.`;
+      prompt += `Analyze the attached image(s). Read the content carefully and respond according to the mode above.`;
     } else {
       prompt += text || '';
     }
@@ -89,13 +89,13 @@ Use this exact format.`;
       prompt += `\n\nContext:\n${fileContents.join('\n').substring(0, 1500)}`;
     }
 
-    // Build the multimodal parts array for Gemini
-    const parts = [{ text: prompt }];
+    // 2. Build the multimodal parts array for the CURRENT message
+    const currentParts = [{ text: prompt }];
 
     if (hasImages) {
       for (const img of images) {
         if (!img || !img.data || !img.mimeType) continue;
-        parts.push({
+        currentParts.push({
           inlineData: {
             mimeType: img.mimeType,
             data: img.data
@@ -103,6 +103,29 @@ Use this exact format.`;
         });
       }
     }
+
+    // 3. Format the Chat History for Gemini
+    const contents = [];
+    
+    if (Array.isArray(chatHistory) && chatHistory.length > 0) {
+      // Exclude the very last message in history (it's the current one we just built above)
+      const historyToFormat = chatHistory.slice(0, -1);
+      
+      historyToFormat.forEach(msg => {
+        // Gemini expects 'user' or 'model' for roles
+        const role = msg.role === 'assistant' ? 'model' : 'user';
+        contents.push({
+          role: role,
+          parts: [{ text: msg.content }]
+        });
+      });
+    }
+
+    // Add the current message with images to the end of the history
+    contents.push({
+      role: 'user',
+      parts: currentParts
+    });
 
     // Try each API key
     let lastError = null;
@@ -112,14 +135,8 @@ Use this exact format.`;
         const genAI = new GoogleGenerativeAI(apiKeys[i]);
         const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
-        const result = await model.generateContent({
-          contents: [
-            {
-              role: 'user',
-              parts
-            }
-          ]
-        });
+        // Send the entire history + current message
+        const result = await model.generateContent({ contents });
         const aiResponse = result.response.text();
 
         return {
