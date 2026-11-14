@@ -32,9 +32,13 @@ exports.handler = async (event, context) => {
   }
 
   try {
-    const { text, mode, fileContents } = JSON.parse(event.body);
-    
-    if (!text && (!fileContents || fileContents.length === 0)) {
+    const { text, mode, fileContents, images } = JSON.parse(event.body);
+
+    const hasImages = Array.isArray(images) && images.length > 0;
+    const hasText = text && text.trim().length > 0;
+    const hasFiles = fileContents && fileContents.length > 0;
+
+    if (!hasText && !hasFiles && !hasImages) {
       return {
         statusCode: 400,
         headers,
@@ -46,13 +50,13 @@ exports.handler = async (event, context) => {
       return {
         statusCode: 500,
         headers,
-        body: JSON.stringify({ error: 'No API keys configured.' })
+        body: JSON.stringify({ error: 'No API keys configured. Set GEMINI_API_KEY_1..12 in Netlify env vars.' })
       };
     }
 
-    // Optimized prompts for faster responses
+    // Build the prompt text
     let prompt = `You are Nile AI Study Buddy. Be concise and clear. `;
-    
+
     switch (mode) {
       case 'summarize':
         prompt += `Summarize this in 3-5 bullet points only:\n\n`;
@@ -75,30 +79,57 @@ Use this exact format.`;
         prompt += `Explain this briefly in simple terms (max 150 words):\n\n`;
     }
 
-    prompt += text || '';
-    if (fileContents && fileContents.length > 0) {
+    if (hasImages && !hasText && !hasFiles) {
+      prompt += `Analyze the attached image(s) — this may be a photo of a past question, lecture notes, handwritten equation, or diagram. Read the content carefully and respond according to the mode above.`;
+    } else {
+      prompt += text || '';
+    }
+
+    if (hasFiles) {
       prompt += `\n\nContext:\n${fileContents.join('\n').substring(0, 1500)}`;
+    }
+
+    // Build the multimodal parts array for Gemini
+    const parts = [{ text: prompt }];
+
+    if (hasImages) {
+      for (const img of images) {
+        if (!img || !img.data || !img.mimeType) continue;
+        parts.push({
+          inlineData: {
+            mimeType: img.mimeType,
+            data: img.data
+          }
+        });
+      }
     }
 
     // Try each API key
     let lastError = null;
-    
+
     for (let i = 0; i < apiKeys.length; i++) {
       try {
         const genAI = new GoogleGenerativeAI(apiKeys[i]);
         const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
-        
-        // Use streaming for faster perceived response
-        const result = await model.generateContent(prompt);
+
+        const result = await model.generateContent({
+          contents: [
+            {
+              role: 'user',
+              parts
+            }
+          ]
+        });
         const aiResponse = result.response.text();
-        
+
         return {
           statusCode: 200,
           headers,
-          body: JSON.stringify({ 
+          body: JSON.stringify({
             result: aiResponse,
             mode: mode,
             keyUsed: i + 1,
+            hadImages: hasImages,
             timestamp: new Date().toISOString()
           })
         };
@@ -107,15 +138,15 @@ Use this exact format.`;
         console.log(`API key ${i + 1} failed:`, err.message);
       }
     }
-    
+
     throw new Error(`All ${apiKeys.length} API keys failed. Last error: ${lastError?.message}`);
-    
+
   } catch (error) {
     console.error('Error:', error);
     return {
       statusCode: 500,
       headers,
-      body: JSON.stringify({ 
+      body: JSON.stringify({
         error: error.message || 'Internal server error'
       })
     };
