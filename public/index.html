@@ -965,11 +965,7 @@
                 bubble.appendChild(contentDiv);
                 chatStream.appendChild(bubble);
                 
-                const tempDiv = document.createElement('div');
-                tempDiv.innerHTML = marked.parse(content);
-                const plainText = tempDiv.textContent || tempDiv.innerText || content;
-                
-                contentDiv.innerHTML = '';
+                let currentText = '';
                 const cursor = document.createElement('span');
                 cursor.className = 'typing-cursor';
                 contentDiv.appendChild(cursor);
@@ -977,16 +973,42 @@
                 let i = 0;
                 
                 function typeNext() {
-                    if (i < plainText.length) {
-                        const char = plainText[i];
-                        if (char === '\n') {
-                            contentDiv.insertBefore(document.createElement('br'), cursor);
-                        } else {
-                            contentDiv.insertBefore(document.createTextNode(char), cursor);
-                        }
-                        i++;
+                    if (i < content.length) {
+                        // Type 2-3 characters at a time
+                        let charsToAdd = 2; 
+                        let addedStr = '';
                         
-                        const delay = 1 + Math.random() * 2; 
+                        while (charsToAdd > 0 && i < content.length) {
+                            addedStr += content[i];
+                            i++;
+                            charsToAdd--;
+                        }
+                        
+                        currentText += addedStr;
+                        
+                        // Check if we just finished typing a $ symbol (indicating end of a math block)
+                        if (addedStr.includes('$')) {
+                            // Re-render markdown + math
+                            contentDiv.innerHTML = marked.parse(currentText);
+                            if (window.renderMathInElement) {
+                                renderMathInElement(contentDiv, {
+                                    delimiters: [
+                                        {left: '$$', right: '$$', display: true},
+                                        {left: '$', right: '$', display: false},
+                                        {left: '\\(', right: '\\)', display: false},
+                                        {left: '\\[', right: '\\]', display: true}
+                                    ],
+                                    throwOnError: false
+                                });
+                            }
+                            // Re-add cursor at the end
+                            contentDiv.appendChild(cursor);
+                        } else {
+                            // Regular text - just insert text node to keep it fast
+                            contentDiv.insertBefore(document.createTextNode(addedStr), cursor);
+                        }
+                        
+                        const delay = 5 + Math.random() * 10; 
                         
                         const now = Date.now();
                         if (!isUserScrolling && (now - lastScrollTime > 100)) {
@@ -996,10 +1018,9 @@
                         
                         setTimeout(typeNext, delay);
                     } else {
+                        // Done typing. Final parse.
                         cursor.remove();
                         contentDiv.innerHTML = marked.parse(content);
-                        
-                        // RENDER MATH AFTER TYPING IS DONE
                         if (window.renderMathInElement) {
                             renderMathInElement(contentDiv, {
                                 delimiters: [
